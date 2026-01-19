@@ -1,0 +1,24 @@
+# Build artifacts
+*.o
+visual-logic-life-search
+test/test_*
+!test/test_*.cpp
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Debug
+*.dSYM/
+
+# SAT solvers (binaries)
+solvers/
+
+# Claude Code
+settings.local.json
