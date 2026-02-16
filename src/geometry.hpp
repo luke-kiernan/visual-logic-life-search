@@ -2,9 +2,21 @@
 #include <tuple>
 #include <utility>
 #include <set>
+#include <functional>
 
 /* POINT: represents (x, y, t) coordinates, or sometimes a vector in (x, y, t) space */
 using Point = std::tuple<int, int, int>;
+
+// Hash function for Point (for use with unordered containers)
+struct PointHash {
+    size_t operator()(const Point& p) const {
+        auto [x, y, t] = p;
+        size_t h = std::hash<int>{}(x);
+        h ^= std::hash<int>{}(y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<int>{}(t) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        return h;
+    }
+};
 
 Point operator +(Point p1, Point p2) {
     auto [x1, y1, t1] = p1;

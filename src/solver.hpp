@@ -7,9 +7,12 @@
 #include <array>
 #include <memory>
 #include <stdexcept>
+#include <chrono>
+#include <iostream>
 #include <unistd.h>
 #include <sys/wait.h>
-#include "variable_grid.hpp"  // for ClauseList, Clause
+#include "sub_pattern.hpp"  // for ClauseList, Clause
+#include "profiling.hpp"
 
 enum class SolverStatus {
     SAT,
@@ -24,10 +27,18 @@ struct SolverResult {
 };
 
 // Convert clauses to DIMACS format string
-inline std::string make_dimacs_string(const ClauseList& clauses, int num_variables) {
+// Clause is std::array<int, 10> with 0 as sentinel for unused slots
+inline std::string make_dimacs_string(const ClauseList& clauses, int num_variables,
+                                       const BigClauseList& big_clauses = {}) {
     std::ostringstream oss;
-    oss << "p cnf " << num_variables << " " << clauses.size() << "\n";
+    oss << "p cnf " << num_variables << " " << (clauses.size() + big_clauses.size()) << "\n";
     for (const auto& clause : clauses) {
+        for (int lit : clause) {
+            if (lit != 0) oss << lit << " ";
+        }
+        oss << "0\n";
+    }
+    for (const auto& clause : big_clauses) {
         for (int lit : clause) {
             oss << lit << " ";
         }
@@ -160,7 +171,24 @@ inline SolverResult call_solver(const std::string& dimacs_string,
 // Convenience function: solve clauses directly
 inline SolverResult solve(const ClauseList& clauses,
                           int num_variables,
-                          const std::string& solver_name = "kissat") {
-    std::string dimacs = make_dimacs_string(clauses, num_variables);
-    return call_solver(dimacs, solver_name);
+                          const std::string& solver_name = "kissat",
+                          const BigClauseList& big_clauses = {}) {
+    auto t0 = std::chrono::high_resolution_clock::now();
+
+    std::string dimacs = make_dimacs_string(clauses, num_variables, big_clauses);
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    SolverResult result = call_solver(dimacs, solver_name);
+
+    auto t2 = std::chrono::high_resolution_clock::now();
+
+    auto dimacs_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    auto solver_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+    auto total_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t0).count();
+    std::cout << "  Solve phase: " << format_duration(total_ms)
+              << " (DIMACS gen: " << format_duration(dimacs_ms)
+              << ", solver: " << format_duration(solver_ms) << ")\n";
+
+    return result;
 }

@@ -1,15 +1,20 @@
 #pragma once
 #include <vector>
-#include "known_pattern.hpp"
+#include "geometry.hpp"
 
+/*
+CellGroup: Defines symmetry constraints for a group of cells.
+
+- spatial_transformations: Symmetries within each generation (e.g., reflection, rotation)
+- time_transformation: How cells map between generations (e.g., t -> t+1 for stable patterns)
+
+Cell groups are used by VariablePattern to determine which cells share the same variable.
+*/
 struct CellGroup {
-    // ambiguity: what if the reference pattern is inconsistent with the transformations?
     std::vector<AffineTransf> spatial_transformations;
     AffineTransf time_transformation;
-    bool has_reference_pattern;
-    KnownPattern reference_pat;
 
-    CellGroup() : spatial_transformations(), time_transformation(IDENTITY), has_reference_pattern(false), reference_pat(EMPTY_PAT) {}
+    CellGroup() : spatial_transformations(), time_transformation(IDENTITY) {}
 };
 
 const int DEFAULT_CELL_GROUP = -1;

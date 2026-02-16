@@ -1,18 +1,14 @@
 #pragma once
 /*
-represents a rectangular grid of variables.
+Represents a rectangular grid of variables. Used as an intermediate between VariablePattern and CNF clauses:
+it is at this step that we turn geometry constraints (cell groups, symmetry) into variable equivalences.
 0 and 1 have special meanings: 0 = dead cell, 1 = live cell, other variables are for "unknown" cells.
 i.e. all cells labeled by 2 have the same state.
 */
 #include <vector>
 #include <tuple>
-#include "search_pattern.hpp"
-
-// Type aliases for clause storage - change these to switch implementations
-// A single clause is a disjunction of literals (positive = true, negative = false)
-using Clause = std::vector<int>;
-// Collection of all clauses (CNF = conjunction of clauses)
-using ClauseList = std::vector<Clause>;
+#include "sub_pattern.hpp"  // For Clause, ClauseList
+#include "variable_pattern.hpp"  // For VariablePattern
 
 struct VariableGrid {
     // grid[t][y][x] = variable index. Upper-left is always (0,0,0).
@@ -26,7 +22,7 @@ struct VariableGrid {
     int size_t() const { return grid.size(); }
 };
 
-VariableGrid construct_variable_grid(const SearchPattern& pattern);
+VariableGrid construct_variable_grid(const VariablePattern& pattern);
 void write_csv(const VariableGrid& var_grid, const std::string& filename, bool overwrite = false);
 ClauseList calculate_clauses(const VariableGrid& var_grid, int& num_variables);
 void write_cnf(const VariableGrid& var_grid, const std::string& filename, bool overwrite = false);

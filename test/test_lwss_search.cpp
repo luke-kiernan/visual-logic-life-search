@@ -8,9 +8,9 @@
 // - 3 generations (t: 0, 1, 2)
 // - Time transformation: flip y, shift x+1, after 2 gens
 //   i.e. (x, y, t) -> (x+1, -y, t+2)
-SearchPattern create_lwss_search_pattern() {
+VariablePattern create_lwss_search_pattern() {
     // Start with basic 6x5 grid, 3 generations
-    SearchPattern pattern(6, 5, 2);
+    VariablePattern pattern(6, 5, 2);
 
     // Shift y by -2 so y ranges from -2 to 2 (centered for flip symmetry)
     pattern.shift_by({0, -2, 0});
@@ -27,7 +27,7 @@ SearchPattern create_lwss_search_pattern() {
 void test_lwss_variable_grid() {
     std::cout << "Testing LWSS search pattern -> variable grid...\n";
 
-    SearchPattern pattern = create_lwss_search_pattern();
+    VariablePattern pattern = create_lwss_search_pattern();
     VariableGrid var_grid = construct_variable_grid(pattern);
 
     // Check dimensions
@@ -95,7 +95,7 @@ void test_lwss_variable_grid() {
 void test_lwss_clauses() {
     std::cout << "Testing LWSS clause generation...\n";
 
-    SearchPattern pattern = create_lwss_search_pattern();
+    VariablePattern pattern = create_lwss_search_pattern();
     VariableGrid var_grid = construct_variable_grid(pattern);
 
     int num_vars = 0;

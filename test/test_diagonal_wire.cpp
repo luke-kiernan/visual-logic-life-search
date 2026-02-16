@@ -8,9 +8,9 @@
 // - Background (stable wire) has (2,2) spatial symmetry
 // - 14x14 search area, perturbation fits in 3x3 box
 
-SearchPattern create_diagonal_wire_pattern() {
+VariablePattern create_diagonal_wire_pattern() {
     // 20x20 grid, 4 generations (t=0,1,2,3)
-    SearchPattern pattern(20, 20, 3);
+    VariablePattern pattern(20, 20, 3);
 
     // Shift so grid is centered: x,y from -10 to 9
     pattern.shift_by({-10, -10, 0});
@@ -73,7 +73,7 @@ void print_solution_gen(const VariableGrid& grid, const SolverResult& result, in
 
 int main() {
     std::cout << "Creating diagonal wire search pattern...\n";
-    SearchPattern pattern = create_diagonal_wire_pattern();
+    VariablePattern pattern = create_diagonal_wire_pattern();
 
     std::cout << "Building variable grid...\n";
     VariableGrid var_grid = construct_variable_grid(pattern);
@@ -107,8 +107,9 @@ int main() {
     }
 
     // Add constraint: at least one cell must be alive in EACH generation
+    BigClauseList big_clauses;
     for (int t = 0; t < var_grid.size_t(); t++) {
-        Clause at_least_one_alive;
+        BigClause at_least_one_alive;
         for (int y = 0; y < var_grid.size_y(); y++) {
             for (int x = 0; x < var_grid.size_x(); x++) {
                 int var_idx = var_grid.grid[t][y][x];
@@ -118,7 +119,7 @@ int main() {
             }
         }
         if (!at_least_one_alive.empty()) {
-            clauses.push_back(at_least_one_alive);
+            big_clauses.push_back(at_least_one_alive);
         }
     }
 
@@ -131,17 +132,17 @@ int main() {
     if (v0 >= 2 && v1 >= 2 && v0 != v1) {
         // XOR constraint: v0 != v1
         // Encoded as: (v0 OR v1) AND (NOT v0 OR NOT v1)
-        clauses.push_back({v0 - 1, v1 - 1});           // at least one true
-        clauses.push_back({-(v0 - 1), -(v1 - 1)});     // at least one false
+        clauses.emplace_back(make_clause({v0 - 1, v1 - 1}));           // at least one true
+        clauses.emplace_back(make_clause({-(v0 - 1), -(v1 - 1)}));     // at least one false
         std::cout << "  Added XOR constraint\n";
     } else {
         std::cout << "  WARNING: Could not add XOR constraint (vars equal or known)\n";
     }
 
-    std::cout << "  " << clauses.size() << " clauses, " << num_vars << " variables\n";
+    std::cout << "  " << (clauses.size() + big_clauses.size()) << " clauses, " << num_vars << " variables\n";
 
     std::cout << "Calling solver...\n";
-    SolverResult result = solve(clauses, num_vars);
+    SolverResult result = solve(clauses, num_vars, "kissat", big_clauses);
 
     if (result.status == SolverStatus::SAT) {
         std::cout << "SATISFIABLE!\n\n";

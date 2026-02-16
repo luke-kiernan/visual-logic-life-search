@@ -26,7 +26,6 @@ KnownPattern::KnownPattern(std::string rle, int max_gen){
                 }
             } else if(c == '$'){
                 y += count;
-                if(x > max_x) max_x = x;
                 x = 0;
             } else if(c == '!'){
                 break;

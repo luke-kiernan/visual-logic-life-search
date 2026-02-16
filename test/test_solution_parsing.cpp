@@ -12,9 +12,9 @@
 // o.o
 // .o.
 
-SearchPattern create_boat_pattern() {
+VariablePattern create_boat_pattern() {
     // 3x3 grid, 2 generations
-    SearchPattern pattern(3, 3, 1);
+    VariablePattern pattern(3, 3, 1);
 
     // Gen 0: set up the boat (known cells)
     // (0,0)=alive, (1,0)=alive, (2,0)=dead
@@ -48,7 +48,7 @@ bool get_cell_state(const VariableGrid& grid, const SolverResult& result, int x,
 void test_boat_still_life() {
     std::cout << "Testing boat still life solution parsing...\n";
 
-    SearchPattern pattern = create_boat_pattern();
+    VariablePattern pattern = create_boat_pattern();
     VariableGrid var_grid = construct_variable_grid(pattern);
 
     std::cout << "Variable grid:\n";
@@ -103,7 +103,7 @@ void test_blinker_oscillator() {
     // .o.     ooo
     // .o.     ...
 
-    SearchPattern pattern(3, 3, 1);
+    VariablePattern pattern(3, 3, 1);
 
     // Gen 0: vertical blinker
     pattern.set_dead({0, 0, 0});

@@ -84,7 +84,7 @@ bool is_valid_full_evolution(int assignment) {
 
 // Check if an assignment satisfies a single clause
 // assignment is indexed by variable number (1-based)
-bool satisfies_clause(const std::vector<int>& clause, const std::vector<bool>& assignment) {
+bool satisfies_clause(const Clause& clause, const std::vector<bool>& assignment) {
     for (int lit : clause) {
         int var = std::abs(lit);
         bool val = assignment[var];
@@ -95,7 +95,7 @@ bool satisfies_clause(const std::vector<int>& clause, const std::vector<bool>& a
 }
 
 // Check if an assignment satisfies all clauses
-bool satisfies_all_clauses(const std::vector<std::vector<int>>& clauses,
+bool satisfies_all_clauses(const ClauseList& clauses,
                            const std::vector<bool>& assignment) {
     for (const auto& clause : clauses) {
         if (!satisfies_clause(clause, assignment)) {

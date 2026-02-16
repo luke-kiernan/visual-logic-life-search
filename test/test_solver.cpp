@@ -7,7 +7,7 @@ void test_simple_sat() {
 
     // Simple satisfiable problem: (x1 OR x2) AND (NOT x1 OR x2)
     // Solution: x2 = true
-    std::vector<std::vector<int>> clauses = {
+    ClauseList clauses = {
         {1, 2},    // x1 OR x2
         {-1, 2}    // NOT x1 OR x2
     };
@@ -38,7 +38,7 @@ void test_simple_unsat() {
     std::cout << "Testing simple UNSAT problem...\n";
 
     // Unsatisfiable: (x1) AND (NOT x1)
-    std::vector<std::vector<int>> clauses = {
+    ClauseList clauses = {
         {1},
         {-1}
     };
@@ -60,10 +60,10 @@ void test_simple_unsat() {
 void test_dimacs_generation() {
     std::cout << "Testing DIMACS generation...\n";
 
-    std::vector<std::vector<int>> clauses = {
-        {1, 2, 3},
-        {-1, -2},
-        {3}
+    ClauseList clauses = {
+        make_clause({1, 2, 3}),
+        make_clause({-1, -2}),
+        make_clause({3})
     };
 
     std::string dimacs = make_dimacs_string(clauses, 3);
@@ -71,7 +71,7 @@ void test_dimacs_generation() {
 
     assert(dimacs.find("p cnf 3 3") != std::string::npos);
     assert(dimacs.find("1 2 3 0") != std::string::npos);
-    assert(dimacs.find("-1 -2 0") != std::string::npos);
+    assert(dimacs.find("-2 -1 0") != std::string::npos);  // sorted order: -2 < -1
 
     std::cout << "PASSED: test_dimacs_generation\n";
 }

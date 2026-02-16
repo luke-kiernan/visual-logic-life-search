@@ -3,44 +3,31 @@
 #include <fstream>
 #include <stdexcept>
 #include <cassert>
+#include <chrono>
+#include <iostream>
 #include "sat_logic.hpp"
+#include "union_find.hpp"
+#include "profiling.hpp"
 
 
-Point union_find_find(std::map<Point, Point>& repr, Point p){
-    assert(repr.find(p) != repr.end());
-    while(repr[p] != p){
-        repr[p] = repr[repr[p]];
-        p = repr[p];
-    }
-    return p;
-}
-
-void union_find_union(std::map<Point, Point>& repr, Point a, Point b){
-    Point ra = union_find_find(repr, a);
-    Point rb = union_find_find(repr, b);
-    if(ra != rb){
-        repr[max(ra, rb)] = min(ra, rb);
-    }
-}
-
-
-
-VariableGrid construct_variable_grid(const SearchPattern& pattern){
-    std::map<Point, Point> repr; // union-find structure for equivalent cells.
+VariableGrid construct_variable_grid(const VariablePattern& pattern){
+    auto start = std::chrono::high_resolution_clock::now();
+    UnionFind<Point, PointHash> uf;
     Bounds bounds = pattern.get_bounds();
     auto xlims = std::get<0>(bounds);
     auto ylims = std::get<1>(bounds);
     auto tlims = std::get<2>(bounds);
+    uf.reserve(pattern.get_cells().size() + 2);  // +2 for sentinels
     Point live_cell = Point(-9999, -9999, -9999); // sentinel for live cells.
     Point dead_cell = Point(-9998, -9998, -9998); // sentinel for dead cells.
-    repr[live_cell] = live_cell;
-    repr[dead_cell] = dead_cell;
+    uf.make_set(live_cell);
+    uf.make_set(dead_cell);
     for (const Cell& cell : pattern.get_cells()){
-        repr[cell.position] = cell.position;  // initialize as singleton first
+        uf.make_set(cell.position);
         if (is_live(cell)){
-            union_find_union(repr, cell.position, live_cell);
+            uf.unite(cell.position, live_cell);
         } else if (is_dead(cell)){
-            union_find_union(repr, cell.position, dead_cell);
+            uf.unite(cell.position, dead_cell);
         }
     }
     // now go work out which cells are equivalent, via union-find and the transformations in each cell group.
@@ -63,7 +50,7 @@ VariableGrid construct_variable_grid(const SearchPattern& pattern){
             // Only link if target's priority <= source's priority
             // Never link to DEFAULT_CELL_GROUP cells (boundary/excluded cells)
             if (target.cell_group != DEFAULT_CELL_GROUP && target.cell_group <= cell.cell_group)
-                union_find_union(repr, cell_pos, img);
+                uf.unite(cell_pos, img);
         }
         // time transformation:
         Point time_img = transform(cell_group.time_transformation, cell_pos);
@@ -72,7 +59,7 @@ VariableGrid construct_variable_grid(const SearchPattern& pattern){
             // Only link if target's priority <= source's priority
             // Never link to DEFAULT_CELL_GROUP cells (boundary/excluded cells)
             if (target.cell_group != DEFAULT_CELL_GROUP && target.cell_group <= cell.cell_group)
-                union_find_union(repr, cell_pos, time_img);
+                uf.unite(cell_pos, time_img);
         }
     }
 
@@ -88,12 +75,12 @@ VariableGrid construct_variable_grid(const SearchPattern& pattern){
     );
 
     std::map<Point, int> repr_to_varindex;
-    repr_to_varindex[union_find_find(repr, dead_cell)] = 0;
-    repr_to_varindex[union_find_find(repr, live_cell)] = 1;
+    repr_to_varindex[uf.find(dead_cell)] = 0;
+    repr_to_varindex[uf.find(live_cell)] = 1;
     int next_var_index = 2; // 0 = dead, 1 = live
     for (const Cell& cell : pattern.get_cells()){
         Point cell_pos = cell.position;
-        Point cell_repr = union_find_find(repr, cell_pos);
+        Point cell_repr = uf.find(cell_pos);
         if(repr_to_varindex.find(cell_repr) == repr_to_varindex.end()){
             repr_to_varindex[cell_repr] = next_var_index;
             next_var_index++;
@@ -117,6 +104,12 @@ VariableGrid construct_variable_grid(const SearchPattern& pattern){
     VariableGrid var_grid;
     var_grid.grid = std::move(grid);
     var_grid.follows_rule = std::move(follows_rule);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    std::cout << "  construct_variable_grid: " << format_duration(ms)
+              << " (" << (next_var_index - 2) << " variables)\n";
+
     return var_grid;
 }
 
@@ -160,17 +153,12 @@ void write_csv(const VariableGrid& var_grid, const std::string& filename, bool o
     }
 }
 
-bool add_clause_term(std::set<int>& clause, int literal){
-    if(clause.find(-literal) != clause.end())
-        return true; // clause is satisfied: x or -x or ... = true
-    clause.insert(literal);
-    return false; // clause not yet satisfied
-}
-
 // TODO: other encodings, like knuth 3-sat or APG's "split" variant.
 // Python implementation of both: https://gitlab.com/apgoucher/metasat/-/blob/master/grills.py
 // C implementation of knuth: https://taocp-fun.gitlab.io/v4f6-sat-knuth/pdf/sat-life.pdf
 ClauseList calculate_clauses(const VariableGrid& var_grid, int& num_variables){
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::array<int, 10> ten_cells{}; // 9 neighborhood + next gen
 
     const auto& grid = var_grid.grid;
@@ -178,10 +166,11 @@ ClauseList calculate_clauses(const VariableGrid& var_grid, int& num_variables){
     int grid_size_y = grid[0].size();
     int grid_size_x = grid[0][0].size();
 
-    // PERF: switch to using fixed-size array for each clause, with 0 as sentinel value
-    // PERF: duplicate clauses elimination.
     ClauseList clauses;
-    std::set<int> clause; // max length 10, using set to detect tautologies (x OR ~x)
+    // Estimate: ~330 clauses per transition, but many get eliminated
+    size_t estimated_transitions = size_t(grid_size_x) * grid_size_y * (grid_size_t - 1);
+    clauses.reserve(estimated_transitions * 100);  // Conservative estimate
+    ClauseBuilder clause;
     num_variables = 0;
     for (int t = 0; t + 1 < grid_size_t; t++){
         for (int y = 0; y < grid_size_y; y++){
@@ -220,7 +209,7 @@ ClauseList calculate_clauses(const VariableGrid& var_grid, int& num_variables){
                             } else {
                                 // unknown cell: add literal
                                 int sign = (force & (1 << bit)) ? 1 : -1;
-                                clause_satisfied = add_clause_term(clause, sign * (var_index - 1));
+                                clause_satisfied = clause.add(sign * (var_index - 1));
                                 num_variables = std::max(num_variables, var_index - 1);
                             }
                             if (clause_satisfied)
@@ -228,12 +217,19 @@ ClauseList calculate_clauses(const VariableGrid& var_grid, int& num_variables){
                         }
                     }
                     if(!clause_satisfied && !clause.empty())
-                        clauses.emplace_back(Clause(clause.begin(), clause.end()));
+                        clauses.emplace_back(clause.get());
                     clause.clear();
                 }
             }
         }
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    std::cout << "  calculate_clauses: " << format_duration(ms)
+              << " (" << clauses.size() << " clauses, "
+              << num_variables << " variables)\n";
+
     return clauses;
 }
 
